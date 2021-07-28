@@ -1,5 +1,6 @@
 import math
 import os
+import pickle
 import numpy as np
 from collections import OrderedDict
 import ot
@@ -109,13 +110,14 @@ def write_vocab(tokens, pmatrix, chars, write_file_name, threshold=0.0001):
   print("The vocabulary has been written into the given file. You can use this vocabulary to segment tokens in subword-nmt")
 
 
-def run_ot(oldtokens, chars, max_number=30000, interval=1000, numItermax=300):
+def run_ot(oldtokens, chars, max_number=30000, interval=1000, numItermax=300, logging_dir=None):
     scores = {}
     #max_number = 10000
     
     previous_entropy = 0
     chars = list(chars.items())
     
+    states = []
     for iter_number in range(interval, max_number, interval):#iteration_numbers:
         tokens = list(oldtokens.items())[:iter_number]
         #chars = list(chars.items)
@@ -140,9 +142,18 @@ def run_ot(oldtokens, chars, max_number=30000, interval=1000, numItermax=300):
            print("finish running", iter_number, Gs, Gs-previous_entropy)
            scores[iter_number] = Gs-previous_entropy
         previous_entropy = Gs
+        states.append((iter_number, Gs, a, b, d_matrix, scores[iter_number]))
+
     sorted_scores = sorted(scores.items(), key=lambda x:x[1], reverse=True)
     print("best size: ", str(sorted_scores[0][0]))
     print("One optional solution is that you can use this size to generated vocabulary in subword-nmt or sentencepiece")
+
+    if logging_dir !=None:
+        output_file = os.path.join(logging_dir, 'states.pkl')
+        print(f'Saving states for each timestep in OT run to `{output_file}`.')
+        with open(output_file, 'wb') as f:
+            pickle.dump(states, f)
+
     return sorted_scores[0][0]
      
 
@@ -179,6 +190,8 @@ if __name__ == "__main__":
                         help='path to token candidates. In this implementation, we take BPE-generated code segmentation as token candidates.')
     parser.add_argument('--vocab_file', default=None,
                        help='path to the file storing the generated tokens.')
+    parser.add_argument('--logging_dir', default=None,
+                       help='path to the logging and related statistics.')
     parser.add_argument('--max_number', default=10000, type=int,
                        help='the maximum size of the generated vocabulary')
     parser.add_argument('--interval', default=1000, type=int,
@@ -196,6 +209,7 @@ if __name__ == "__main__":
     target_file = args.target_file
     token_candidate_file = args.token_candidate_file
     vocab_file = args.vocab_file
+    logging_dir = args.logging_dir
     max_number = args.max_number
     interval = args.interval
     num_iter_max = args.loop_in_ot
@@ -206,7 +220,7 @@ if __name__ == "__main__":
     
     oldtokens = get_tokens.get_tokens(source_file, target_file, token_candidate_file, tokenizer=args.tokenizer) # get token candidates and their frequencies
     chars = get_chars.get_chars(source_file, target_file, tokenizer=args.tokenizer) # get chars and their frequencies
-    optimal_size = run_ot(oldtokens, chars, max_number,interval, num_iter_max) # generate the best ot size
+    optimal_size = run_ot(oldtokens, chars, max_number,interval, num_iter_max, logging_dir) # generate the best ot size
     Gs = run_ot_write(oldtokens, chars, optimal_size, num_iter_max) # generate the optimal matrix based on the ot size
     write_vocab(oldtokens, Gs, chars, vocab_file, threshold) #generate the vocabulary based on the optimal matrix
     with open(size_file, 'w') as sw:
