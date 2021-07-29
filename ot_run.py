@@ -137,6 +137,7 @@ def run_ot(oldtokens, chars, max_number=30000, interval=1000, numItermax=300, lo
         Gs,_ = ot.sinkhorn(a,b,d_matrix,1.0,method='sinkhorn',numItermax=numItermax, epsilon0=1e-6)
         if iter_number <= interval:
             previous_entropy = Gs
+            states.append((iter_number, Gs, a, b, d_matrix, None))
             continue#print("finish reading", iter_number, Gs, (Gs-previous_entropy)/2)
         if iter_number > interval:
            print("finish running", iter_number, Gs, Gs-previous_entropy)
